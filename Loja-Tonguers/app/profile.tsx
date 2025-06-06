@@ -1,22 +1,22 @@
 // app/profile.tsx
 
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  Image,
-  Platform,
-  ScrollView,
-  Alert,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons'; // Adicionado MaterialIcons
-import { Svg, Path, Circle } from 'react-native-svg'; // Para o avatar SVG e badge
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    Alert,
+    Image,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { Circle, Path, Svg } from 'react-native-svg';
+import { useAuth } from './context/AuthContext';
 
 // Componente SVG simples para placeholder do avatar
 const DefaultAvatarSvg = ({ size = 100, color = "#E0E0E0" }) => (
@@ -34,7 +34,7 @@ const DefaultAvatarSvg = ({ size = 100, color = "#E0E0E0" }) => (
 );
 
 // Componente para barra de progresso
-const ProgressBar = ({ progress = 0 , color = "#7C3AED", height = 8 }) => (
+const ProgressBar = ({ progress = 0, color = "#7C3AED", height = 8 }) => (
   <View style={[styles.progressBarBackground, { height }]}>
     <View style={[styles.progressBarFill, { width: `${progress}%`, backgroundColor: color, height }]} />
   </View>
@@ -42,12 +42,10 @@ const ProgressBar = ({ progress = 0 , color = "#7C3AED", height = 8 }) => (
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { user, signOut } = useAuth();
 
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
-  // Para exemplo, vamos deixar fixo, mas idealmente viria do seu estado/contexto de usuário
-  const [userName, setUserName] = useState('Joãozinho Silva');
-  const [userRole, setUserRole] = useState('Convidado'); // Ex: Convidado, Verificado, Premium
-  const [identityVerification, setIdentityVerification] = useState(76); // Percentual
+  const [identityVerification, setIdentityVerification] = useState(76);
 
   useEffect(() => {
     (async () => {
@@ -68,13 +66,30 @@ export default function ProfileScreen() {
   };
 
   const handleNavigateToEdit = () => {
-    // Navegar para uma tela de edição de perfil mais detalhada
-    // router.push('/profile/edit'); // Exemplo de rota
-    Alert.alert("Editar Perfil", "Navegar para tela de edição de informações pessoais.");
+    router.push('/edit-profile');
   };
 
   const handleNotificationPress = () => {
     router.push('/notifications');
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.replace('/login');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to sign out');
+    }
+  };
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <Text>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -83,24 +98,22 @@ export default function ProfileScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.headerIconContainer}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.customHeaderTitle}>Perfil</Text>
+        <Text style={styles.customHeaderTitle}>Profile</Text>
         <TouchableOpacity onPress={handleNotificationPress} style={styles.headerIconContainer}>
           <Ionicons name="notifications-outline" size={24} color="#333" />
-          {/* Badge de notificação (opcional) */}
           <View style={styles.notificationBadge} />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        {/* Seção do Avatar e Info Básica */}
+        {/* Avatar and Basic Info Section */}
         <View style={styles.avatarSection}>
           <TouchableOpacity onPress={pickImage} style={styles.avatarContainer}>
             {profilePhoto ? (
               <Image source={{ uri: profilePhoto }} style={styles.avatarImage} />
             ) : (
-              <DefaultAvatarSvg size={100} color="#E9D5FF" /> // Cor roxa clara para o placeholder
+              <DefaultAvatarSvg size={100} color="#E9D5FF" />
             )}
-            {/* Badge de Verificado (SVG) */}
             <View style={styles.verifiedBadge}>
               <Svg height="24" width="24" viewBox="0 0 24 24">
                 <Circle cx="12" cy="12" r="11" fill="#7C3AED" />
@@ -108,56 +121,35 @@ export default function ProfileScreen() {
               </Svg>
             </View>
           </TouchableOpacity>
-          <Text style={styles.userName}>{userName}</Text>
+          <Text style={styles.userName}>{user.name}</Text>
           <View style={styles.userRoleContainer}>
-            <Text style={styles.userRole}>{userRole}</Text>
-            <TouchableOpacity onPress={() => Alert.alert("Editar", "Ação para editar nome/role")}>
+            <Text style={styles.userRole}>{user.email}</Text>
+            <TouchableOpacity onPress={() => handleNavigateToEdit()}>
               <MaterialIcons name="edit" size={16} color="#7C3AED" style={{ marginLeft: 8 }}/>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Card de Verificação de Identidade */}
+        {/* Identity Verification Card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Verificação de Identidade</Text>
+            <Text style={styles.cardTitle}>Identity Verification</Text>
             <Text style={styles.verificationPercentage}>{identityVerification}%</Text>
           </View>
           <ProgressBar progress={identityVerification} />
           <TouchableOpacity style={styles.cardButton}>
-            <Text style={styles.cardButtonText}>Completar Verificação</Text>
+            <Text style={styles.cardButtonText}>Complete Verification</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Seção de Cards Informativos */}
-        <View style={styles.infoCardsContainer}>
-          <TouchableOpacity style={[styles.infoCard, styles.infoCardLeft]}>
-            <View style={styles.infoCardHeader}>
-              <Text style={styles.infoCardTag}>Novo</Text>
-              <MaterialIcons name="arrow-forward-ios" size={14} color="#555" />
-            </View>
-            <Text style={styles.infoCardTitle}>Recursos de Novembro</Text>
-            <Text style={styles.infoCardSubtitle}>Veja as últimas novidades!</Text>
-            {/* Aqui poderia ter um SVG "fofinho" de fundo ou um ícone maior */}
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.infoCard, styles.infoCardRight]}>
-            <View style={styles.infoCardHeader}>
-              <MaterialIcons name="storefront" size={18} color="#7C3AED" />
-              <MaterialIcons name="arrow-forward-ios" size={14} color="#555" />
-            </View>
-            <Text style={styles.infoCardTitle}>Anuncie seu Espaço</Text>
-            <Text style={styles.infoCardSubtitle}>Simples de configurar e lucrar.</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Seção de Configurações */}
-        <Text style={styles.sectionTitle}>Configurações</Text>
+        {/* Settings Section */}
+        <Text style={styles.sectionTitle}>Settings</Text>
         <View style={styles.card}>
           <TouchableOpacity style={styles.settingsItem} onPress={handleNavigateToEdit}>
             <View style={styles.settingsItemIconContainer}>
               <Ionicons name="person-outline" size={22} color="#7C3AED" />
             </View>
-            <Text style={styles.settingsItemText}>Informações Pessoais</Text>
+            <Text style={styles.settingsItemText}>Personal Information</Text>
             <MaterialIcons name="chevron-right" size={24} color="#BBB" />
           </TouchableOpacity>
           <View style={styles.settingsDivider} />
@@ -165,21 +157,21 @@ export default function ProfileScreen() {
             <View style={styles.settingsItemIconContainer}>
               <Ionicons name="notifications-outline" size={22} color="#7C3AED" />
             </View>
-            <Text style={styles.settingsItemText}>Notificações</Text>
+            <Text style={styles.settingsItemText}>Notifications</Text>
             <MaterialIcons name="chevron-right" size={24} color="#BBB" />
           </TouchableOpacity>
           <View style={styles.settingsDivider} />
-          <TouchableOpacity style={styles.settingsItem} onPress={() => Alert.alert("Privacidade", "Abrir configurações de privacidade.")}>
+          <TouchableOpacity style={styles.settingsItem} onPress={() => Alert.alert("Privacy", "Open privacy settings.")}>
             <View style={styles.settingsItemIconContainer}>
               <Ionicons name="lock-closed-outline" size={22} color="#7C3AED" />
             </View>
-            <Text style={styles.settingsItemText}>Privacidade</Text>
+            <Text style={styles.settingsItemText}>Privacy</Text>
             <MaterialIcons name="chevron-right" size={24} color="#BBB" />
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={() => router.replace('/')}>
-          <Text style={styles.logoutButtonText}>Sair da Conta</Text>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
+          <Text style={styles.logoutButtonText}>Sign Out</Text>
         </TouchableOpacity>
 
       </ScrollView>
@@ -194,8 +186,13 @@ export const options = {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8F9FA', // Um cinza bem claro para o fundo
+    backgroundColor: '#F8F9FA',
     paddingTop: Platform.OS === 'android' ? 25 : 0,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   customHeader: {
     flexDirection: 'row',
@@ -203,7 +200,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFF', // Fundo branco para o header
+    backgroundColor: '#FFF',
     borderBottomWidth: 1,
     borderBottomColor: '#EFEFEF',
   },
@@ -223,7 +220,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#7C3AED', // Cor do badge
+    backgroundColor: '#7C3AED',
     borderWidth: 1,
     borderColor: '#FFF',
   },
@@ -239,7 +236,7 @@ const styles = StyleSheet.create({
   avatarContainer: {
     position: 'relative',
     marginBottom: 12,
-    width: 104, // Tamanho do avatar + borda do badge
+    width: 104,
     height: 104,
     justifyContent: 'center',
     alignItems: 'center',
@@ -248,24 +245,14 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#E9D5FF', // Borda roxa clara
   },
   verifiedBadge: {
     position: 'absolute',
-    top: 0,
+    bottom: 0,
     right: 0,
-    backgroundColor: '#FFF', // Fundo branco para o badge se destacar
-    borderRadius: 12,
-    padding: 1, // Pequeno padding para a sombra do SVG funcionar melhor
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1, },
-    shadowOpacity: 0.15,
-    shadowRadius: 2.0,
-    elevation: 3,
   },
   userName: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 4,
@@ -275,152 +262,99 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   userRole: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#666',
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFF',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000000',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   cardTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: '#333',
   },
   verificationPercentage: {
-    fontSize: 15,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#7C3AED',
   },
   progressBarBackground: {
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#F3F4F6',
     borderRadius: 4,
     overflow: 'hidden',
-    marginTop: 4,
-    marginBottom: 12,
   },
   progressBarFill: {
     borderRadius: 4,
   },
   cardButton: {
-    backgroundColor: '#F0E6FF', // Roxo bem clarinho
-    paddingVertical: 10,
-    borderRadius: 8,
+    marginTop: 12,
+    paddingVertical: 8,
     alignItems: 'center',
-    marginTop: 8,
   },
   cardButtonText: {
     color: '#7C3AED',
     fontWeight: '600',
-    fontSize: 14,
-  },
-  infoCardsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  infoCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    width: '48%', // Para duas colunas
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  infoCardLeft: {
-    // pode ter estilos específicos se necessário
-  },
-  infoCardRight: {
-    // pode ter estilos específicos se necessário
-  },
-  infoCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  infoCardTag: {
-    backgroundColor: '#E9D5FF', // Roxo claro
-    color: '#7C3AED',
-    fontSize: 10,
-    fontWeight: 'bold',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    overflow: 'hidden', // para borderRadius no iOS
-  },
-  infoCardTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  infoCardSubtitle: {
-    fontSize: 12,
-    color: '#666',
-    lineHeight: 16,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#333',
-    marginTop: 8, // Menor margem pois vem depois de cards
     marginBottom: 12,
+    marginTop: 8,
   },
   settingsItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 12,
   },
   settingsItemIconContainer: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F0E6FF', // Roxo bem claro
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   settingsItemText: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     color: '#333',
-    fontWeight: '500',
   },
   settingsDivider: {
     height: 1,
-    backgroundColor: '#F0F0F0',
-    marginVertical: 4, // Pequena margem para a linha
-    marginLeft: 48, // Para alinhar com o texto, após o ícone
+    backgroundColor: '#EFEFEF',
+    marginVertical: 4,
   },
   logoutButton: {
-    marginTop: 20,
-    paddingVertical: 14,
-    backgroundColor: '#FFF', // Botão com fundo branco
-    borderRadius: 10,
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 16,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E9D5FF', // Borda roxa clara
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   logoutButtonText: {
-    color: '#C026D3', // Um tom de roxo/pink para o texto de logout
-    fontSize: 15,
+    color: '#EF4444',
+    fontSize: 16,
     fontWeight: '600',
   },
 });

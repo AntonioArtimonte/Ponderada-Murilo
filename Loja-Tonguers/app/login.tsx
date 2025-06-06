@@ -1,18 +1,20 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import LoginIllustration from '../assets/images/shop_img.svg';
-import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from './context/AuthContext';
 
 export const options = {
     headerShown: false,
@@ -21,15 +23,24 @@ export const options = {
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
-  const [senha, setSenha] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+  const { signIn } = useAuth();
 
-  const handleLogin = () => {
-    if (email === 'teste' && senha === 'teste') {
-      Alert.alert('Login feito com sucesso!');
-      router.replace('/home');
-    } else {
-      Alert.alert('Erro', 'Email ou senha inválidos!');
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await signIn(email, password);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to login');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -57,6 +68,7 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               placeholderTextColor="#999"
+              editable={!isSubmitting}
             />
           </View>
 
@@ -67,22 +79,39 @@ export default function LoginScreen() {
             <TextInput
               style={styles.input}
               placeholder="Enter your password"
-              value={senha}
-              onChangeText={setSenha}
+              value={password}
+              onChangeText={setPassword}
               secureTextEntry
               placeholderTextColor="#999"
+              editable={!isSubmitting}
             />
           </View>
 
-          <TouchableOpacity style={styles.forgotWrapper}>
-            <Text style={styles.forgot} onPress={() => router.push('/forgot-password')}>Forgot password?</Text>
+          <TouchableOpacity 
+            style={styles.forgotWrapper}
+            disabled={isSubmitting}
+            onPress={() => router.push('/forgot-password')}
+          >
+            <Text style={styles.forgot}>Forgot password?</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-            <Text style={styles.loginText}>Login</Text>
+          <TouchableOpacity 
+            style={[styles.loginButton, isSubmitting && styles.loginButtonDisabled]} 
+            onPress={handleLogin}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.loginText}>Login</Text>
+            )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.push('/register')} style={styles.registerButton}>
+          <TouchableOpacity 
+            onPress={() => router.push('/register')} 
+            style={styles.registerButton}
+            disabled={isSubmitting}
+          >
             <Text style={styles.registerText}>Register</Text>
           </TouchableOpacity>
         </View>
@@ -161,6 +190,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  loginButtonDisabled: {
+    opacity: 0.7,
   },
   loginText: {
     color: '#fff',

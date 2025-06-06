@@ -1,85 +1,155 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-
-export default function VerifyOtpScreen() {
-  const router = useRouter();
-  // Pegar o parâmetro de email enviado pela rota anterior
-  const { email } = useLocalSearchParams<{ email: string }>();
-  const [code, setCode] = useState('');
-
-  const handleConfirm = () => {
-    if (code.length === 6) {
-      Alert.alert('Código validado', 'Seu código foi confirmado com sucesso!');
-      router.replace('/login'); // ou prossiga para reset de senha, se preferir
-    } else {
-      Alert.alert('Erro', 'Informe um código de 6 dígitos válido.');
-    }
-  };
-
-  const handleResend = () => {
-    Alert.alert('Código reenviado', `Um novo código foi enviado para ${email}.`);
-    // Aqui, em um app real, você chamaria sua API de OTP novamente
-  };
-
-  return (
-    <SafeAreaView style={[styles.safe, { paddingTop: Platform.OS === 'ios' ? 50 : 0 }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-      >
-        <View style={styles.iconContainer}>
-          <Ionicons name="lock-closed-outline" size={64} color="#7C3AED" />
-        </View>
-
-        <Text style={styles.title}>Verificação de Código</Text>
-        {/* Mostrar qual e-mail recebeu o código */}
-        {email && <Text style={styles.subtitleSmall}>Código enviado para {email}</Text>}
-        <Text style={styles.subtitle}>
-          Insira o código de 6 dígitos enviado para o seu e-mail
-        </Text>
-
-        <View style={styles.form}>
-          <Text style={styles.label}>Código OTP</Text>
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="••••••"
-              placeholderTextColor="#999"
-              keyboardType="number-pad"
-              maxLength={6}
-              value={code}
-              onChangeText={setCode}
-            />
-          </View>
-
-          <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
-            <Text style={styles.confirmButtonText}>Confirmar</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={handleResend} style={styles.resendButton}>
-            <Text style={styles.resendText}>Reenviar código</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
-}
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { useAuth } from './context/AuthContext';
 
 export const options = {
   headerShown: false,
 };
+
+export default function VerifyOTPScreen() {
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [timer, setTimer] = useState(60);
+  const inputRefs = useRef<Array<TextInput | null>>([]);
+  const router = useRouter();
+  const { email } = useLocalSearchParams<{ email: string }>();
+  const { verifyOTP, sendOTP } = useAuth();
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimer((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleOtpChange = (text: string, index: number) => {
+    const newOtp = [...otp];
+    newOtp[index] = text;
+    setOtp(newOtp);
+
+    // Move to next input if current input is filled
+    if (text && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleVerify = async () => {
+    const otpString = otp.join('');
+    if (otpString.length !== 6) {
+      Alert.alert('Error', 'Please enter the complete OTP');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await verifyOTP(email, otpString);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to verify OTP');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    if (timer > 0) {
+      Alert.alert('Please wait', `You can resend OTP in ${timer} seconds`);
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await sendOTP(email);
+      setTimer(60);
+      Alert.alert('Success', 'OTP has been resent to your email');
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to resend OTP');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+      >
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+          disabled={isSubmitting}
+        >
+          <Ionicons name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
+
+        <Text style={styles.title}>Verify OTP</Text>
+        <Text style={styles.subtitle}>
+          Enter the 6-digit code sent to your email
+        </Text>
+
+        <View style={styles.otpContainer}>
+          {otp.map((digit, index) => (
+            <TextInput
+              key={index}
+              ref={(ref) => {
+                inputRefs.current[index] = ref;
+              }}
+              style={styles.otpInput}
+              value={digit}
+              onChangeText={(text) => handleOtpChange(text, index)}
+              onKeyPress={(e) => handleKeyPress(e, index)}
+              keyboardType="number-pad"
+              maxLength={1}
+              editable={!isSubmitting}
+            />
+          ))}
+        </View>
+
+        <TouchableOpacity
+          style={[styles.verifyButton, isSubmitting && styles.verifyButtonDisabled]}
+          onPress={handleVerify}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.verifyText}>Verify</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.resendButton}
+          onPress={handleResendOTP}
+          disabled={isSubmitting || timer > 0}
+        >
+          <Text style={[styles.resendText, timer > 0 && styles.resendTextDisabled]}>
+            {timer > 0 ? `Resend OTP in ${timer}s` : 'Resend OTP'}
+          </Text>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
 
 const styles = StyleSheet.create({
   safe: {
@@ -88,79 +158,63 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 24,
   },
-  iconContainer: {
+  backButton: {
     marginBottom: 24,
   },
   title: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#000',
     marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitleSmall: {
-    fontSize: 14,
-    color: '#555',
-    marginBottom: 4,
-    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
     color: '#666',
     marginBottom: 32,
+  },
+  otpContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 32,
+  },
+  otpInput: {
+    width: 45,
+    height: 45,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
     textAlign: 'center',
-    paddingHorizontal: 16,
+    fontSize: 20,
+    fontWeight: 'bold',
   },
-  form: {
-    width: '100%',
-    maxWidth: 320,
-    alignItems: 'center',
-  },
-  label: {
-    alignSelf: 'flex-start',
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 6,
-  },
-  inputContainer: {
-    width: '100%',
-    backgroundColor: '#f1f1f1',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    marginBottom: 24,
-    height: 48,
-    justifyContent: 'center',
-  },
-  input: {
-    fontSize: 18,
-    letterSpacing: 8,
-    textAlign: 'center',
-  },
-  confirmButton: {
+  verifyButton: {
     width: '100%',
     height: 48,
-    backgroundColor: '#7C3AED',
+    backgroundColor: '#000',
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
-  confirmButtonText: {
+  verifyButtonDisabled: {
+    opacity: 0.7,
+  },
+  verifyText: {
     color: '#fff',
-    fontSize: 16,
     fontWeight: 'bold',
+    fontSize: 16,
   },
   resendButton: {
-    paddingVertical: 8,
+    alignItems: 'center',
   },
   resendText: {
     color: '#7C3AED',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
+  },
+  resendTextDisabled: {
+    color: '#999',
   },
 });

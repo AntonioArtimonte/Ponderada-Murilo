@@ -1,53 +1,101 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import RegisterIllustration from '../assets/images/register_screen.svg'; // usa a mesma ou outra SVG aqui
-import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from './context/AuthContext';
+
+export const options = {
+  headerShown: false,
+};
 
 export default function RegisterScreen() {
-  const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [senha, setSenha] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
+  const { signUp } = useAuth();
 
-  const handleRegister = () => {
-    if (name && email && senha) {
-      Alert.alert('Conta criada com sucesso!');
-      router.replace('/login');
-    } else {
-      Alert.alert('Erro', 'Preencha todos os campos');
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const handleRegister = async () => {
+    // Validate inputs
+    if (!name || !email || !password || !confirmPassword) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters long');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await signUp(email, password, name);
+      // User will be automatically redirected to home screen
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Registration failed');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { paddingTop: Platform.OS === 'ios' ? 50 : 0 }]}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-        <RegisterIllustration width={250} height={180} style={styles.image} />
+    <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+      >
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+          disabled={isSubmitting}
+        >
+          <Ionicons name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
 
-        <Text style={styles.title}>Create an Account</Text>
-        <Text style={styles.subtitle}>Register to get started</Text>
+        <Text style={styles.title}>Create Account</Text>
+        <Text style={styles.subtitle}>Sign up to get started</Text>
 
         <View style={styles.form}>
           {/* NAME */}
-          <Text style={styles.label}>Name</Text>
+          <Text style={styles.label}>Full Name</Text>
           <View style={styles.inputContainer}>
             <Ionicons name="person-outline" size={20} color="#aaa" style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Your full name"
+              placeholder="Enter your full name"
               value={name}
               onChangeText={setName}
+              autoCapitalize="words"
               placeholderTextColor="#999"
+              editable={!isSubmitting}
             />
           </View>
 
@@ -57,12 +105,13 @@ export default function RegisterScreen() {
             <Ionicons name="mail-outline" size={20} color="#aaa" style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Your email"
+              placeholder="Enter your email"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
               placeholderTextColor="#999"
+              editable={!isSubmitting}
             />
           </View>
 
@@ -72,20 +121,33 @@ export default function RegisterScreen() {
             <Ionicons name="lock-closed-outline" size={20} color="#aaa" style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Choose a password"
-              value={senha}
-              onChangeText={setSenha}
+              placeholder="Enter your password"
+              value={password}
+              onChangeText={setPassword}
               secureTextEntry
               placeholderTextColor="#999"
+              editable={!isSubmitting}
             />
           </View>
 
-          <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
-            <Text style={styles.registerText}>Register</Text>
+          <TouchableOpacity
+            style={[styles.registerButton, isSubmitting && styles.registerButtonDisabled]}
+            onPress={handleRegister}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.registerButtonText}>Register</Text>
+            )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.replace('/login')} style={styles.loginButton}>
-            <Text style={styles.loginText}>Back to login</Text>
+          <TouchableOpacity
+            onPress={() => router.push('/login')}
+            style={styles.loginButton}
+            disabled={isSubmitting}
+          >
+            <Text style={styles.loginText}>Already have an account? Login</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -93,40 +155,31 @@ export default function RegisterScreen() {
   );
 }
 
-export const options = {
-  headerShown: false,
-};
-
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: '#fff',
   },
   container: {
-    alignItems: 'center',
-    padding: 24,
     flex: 1,
-    justifyContent: 'center',
+    padding: 24,
   },
-  image: {
-    marginBottom: 32,
+  backButton: {
+    marginBottom: 24,
   },
   title: {
     fontSize: 26,
     fontWeight: 'bold',
     color: '#000',
-    marginBottom: 4,
-    textAlign: 'center',
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
     color: '#666',
-    marginBottom: 24,
-    textAlign: 'center',
+    marginBottom: 32,
   },
   form: {
     width: '100%',
-    maxWidth: 320,
   },
   label: {
     fontWeight: '600',
@@ -158,25 +211,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 24,
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  registerText: {
+  registerButtonDisabled: {
+    opacity: 0.7,
+  },
+  registerButtonText: {
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
   },
   loginButton: {
-    width: '100%',
-    height: 48,
-    borderColor: '#7C3AED',
-    borderWidth: 1.5,
-    borderRadius: 10,
-    justifyContent: 'center',
     alignItems: 'center',
   },
   loginText: {
     color: '#7C3AED',
-    fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

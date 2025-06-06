@@ -16,6 +16,8 @@ import { faker } from '@faker-js/faker';
 import { useRouter } from 'expo-router';
 import { useImage } from './context/ImageContext';
 
+import { useAuth } from './context/AuthContext';
+
 const { width } = Dimensions.get('window');
 
 faker.locale = 'en';
@@ -52,6 +54,8 @@ export default function HomeScreen() {
   const [page, setPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const CHUNK = 20;
+
+  const { user } = useAuth();
 
   const loadMore = () => {
     if (loadingMore) return;
@@ -91,7 +95,7 @@ export default function HomeScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Welcome, Joãozinho 👋</Text>
+          <Text style={styles.headerTitle}>Welcome, {user?.name} 👋</Text>
           <Text style={styles.subHeader}>Explore our marketplace</Text>
         </View>
         <TouchableOpacity onPress={() => router.push('/profile')}>
